@@ -1,0 +1,86 @@
+# Тесты на каждый пуш и PR; образы -cpu и -cuda в GHCR на пуш в dev, main и тег v*.
+# Теги образа: latest (main), sha-<7>, v<semver>; вариант - суффиксом: latest-cpu, v0.1.0-cuda.
+name: ci
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # ===================================================================
+  # ТЕСТЫ
+  # ===================================================================
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+
+      # Быстрые тесты: без extras, torch и весов
+      - run: uv sync --frozen
+      - run: uv run pytest -q -m "not model"
+
+  # ===================================================================
+  # ОБРАЗЫ
+  # ===================================================================
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Образ -cuda большой: на dev собирается только -cpu
+        variant: ${{ fromJSON(github.ref == 'refs/heads/dev' && '["cpu"]' || '["cpu", "cuda"]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Слоям CUDA и torch не хватает места на диске раннера
+      - name: Free disk space
+        if: matrix.variant == 'cuda'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Short commit for /v1/info
+        run: echo "GIT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
+            suffix=-${{ matrix.variant }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern=v{{version}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.variant == 'cpu' && 'Dockerfile.cpu' || 'Dockerfile' }}
+          build-args: GIT_SHA=${{ env.GIT_SHA }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
