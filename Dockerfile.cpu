@@ -1,0 +1,55 @@
+# Use uv's official Docker image; the version matches the one that wrote uv.lock
+FROM ghcr.io/astral-sh/uv:0.12.19 AS uv
+
+# Use Python slim image as base
+FROM python:3.12-slim
+
+# Install uv from the uv image
+COPY --from=uv /uv /uvx /bin/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for optimal uv behavior in Docker; Python comes from the image
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_DOWNLOADS=never
+
+# Create app directory
+WORKDIR /app
+
+# Extras to install: the cpu profile and the backends. EXTRAS="" leaves the
+# fake backend only - a light image for the end-to-end check
+ARG EXTRAS="cpu"
+
+# Install uv dependencies. One lock serves both profiles: the conflicting cpu and
+# gpu extras are resolved side by side in it, and --extra picks which one lands.
+COPY pyproject.toml uv.lock .python-version ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev --prerelease=allow \
+      $(for extra in $EXTRAS; do printf -- '--extra %s ' "$extra"; done)
+
+# Copy the entire project
+COPY . .
+
+# Install the project itself. --extra has to be repeated: uv syncs the
+# environment to exactly what is asked for, so omitting it here would uninstall
+# torch again.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --prerelease=allow \
+      $(for extra in $EXTRAS; do printf -- '--extra %s ' "$extra"; done)
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+# The commit goes to /v1/info; it is the last layer, so a new commit rebuilds nothing else
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
+# Expose the port
+EXPOSE 8000
+
+
+# Run the application directly
+ENTRYPOINT ["python", "-m", "uvicorn", "app.main:app"]
+CMD ["--host", "0.0.0.0", "--port", "8000", "--loop", "uvloop", "--http", "httptools"]
