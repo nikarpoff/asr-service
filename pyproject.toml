@@ -1,0 +1,76 @@
+[project]
+name = "asr-service"
+version = "0.1.0"
+description = "Распознавание русской речи для голосового ассистента незрячих"
+authors = [
+    {name = "Nikita Karpov", email = "nikita.karpov@ainergy.ru"}
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  # --- API --------------------------------------------------------
+  "fastapi[standard]>=0.162.0",
+  "uvicorn[standard]>=0.54.0",
+  "python-multipart>=0.0.33,<0.1.0",
+  "pydantic>=2.14.0",
+  "pydantic-settings>=2.16.0",
+  "loguru>=0.7.3",
+
+  # --- Models -----------------------------------------------------
+  "numpy>=2.5.0",
+  "huggingface-hub>=2.4.0",
+]
+
+# ---------------------------------------------------------------------------
+# Profiles. The backend libraries are extras of their own (NFR-13): the
+# registry imports a backend only when it is chosen, so the service installs
+# and passes its fast tests without them.
+# ---------------------------------------------------------------------------
+[project.optional-dependencies]
+
+# CPU wheels, so no CUDA payload.
+cpu = [
+  "torch>=2.14.0,<2.15.0",
+]
+
+# CUDA wheels for the GPU image.
+gpu = [
+  "torch>=2.14.0,<2.15.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.2.0",
+]
+
+# ---------------------------------------------------------------------------
+# uv
+# ---------------------------------------------------------------------------
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu130", extra = "gpu", marker = "sys_platform != 'darwin'" },
+]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+  "model: needs model weights; out of the fast run",
+]
+addopts = "--strict-markers"
