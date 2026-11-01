@@ -1,0 +1,35 @@
+services:
+  asr-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Taken from the environment when set: GIT_SHA=$(git rev-parse --short HEAD), EXTRAS="" for a light image
+      args:
+        - GIT_SHA
+        - EXTRAS
+    container_name: asr-service
+    volumes:
+      - ./model:/opt/model
+    ports:
+      - "127.0.0.1:8102:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Compose creates the network itself: no manual `docker network create`
+networks:
+  default:
+    name: alv-net
