@@ -18,6 +18,8 @@ dependencies = [
   # --- Models -----------------------------------------------------
   "numpy>=2.5.0",
   "huggingface-hub>=2.4.0",
+  # Silero VAD (ASR-2) runs on onnxruntime without torch: it is in the core, the fast tests need it
+  "onnxruntime>=1.31.1,<2.0.0",
 ]
 
 # ---------------------------------------------------------------------------
