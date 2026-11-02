@@ -170,7 +170,7 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" -F "file=@tests/data/questions/q001.
 
 Пороги моделей и эвристик - не переменные окружения, а константы в `app/core/config/constants.py`: лимит тела 4 МиБ, диапазон частот и каналов, пороги детектора речи (вероятность 0,5, речь не короче 250 мс, пауза 100 мс, запас 100 мс по краям).
 
-Настройки распознавания (`VAD_ENABLED`, `MAX_AUDIO_SECONDS`, `FAKE_TEXT`) читает свой класс `AsrSettings` (`app/core/config/asr.py`) из того же окружения и `.env`: класс `Settings` общий для трёх сервисов ИИ и одинаков в них.
+Настройки распознавания (`VAD_ENABLED`, `MAX_AUDIO_SECONDS`, `FAKE_TEXT`) читает свой класс `ServiceSettings` (`app/core/config/service.py`) из того же окружения и `.env`: класс `Settings` общий для трёх сервисов ИИ и одинаков в них.
 
 ## Бэкенды и модели
 
@@ -233,7 +233,7 @@ app/
 │   ├── schemas.py          # контракт API (pydantic)
 │   └── errors.py           # AppError, 422 и 500 -> {"detail": ...}
 ├── core/
-│   ├── config/             # Settings (env, общий), AsrSettings (env распознавания), версия, константы
+│   ├── config/             # Settings (env, общий), ServiceSettings (env распознавания), версия, константы
 │   ├── auth/               # Bearer-токен
 │   ├── audio/              # WAV, L16 и multipart -> отсчёты; моно и 16 кГц
 │   ├── vad/                # Silero VAD на onnxruntime, веса и лицензия MIT

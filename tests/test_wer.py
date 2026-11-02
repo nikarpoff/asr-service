@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from app.core.backends import build_backend
-from app.core.config import get_asr_settings, Settings
+from app.core.config import get_service_settings, Settings
 from bench import wer
 
 MANIFEST = Path(__file__).resolve().parent / "data" / "questions.jsonl"
@@ -21,11 +21,11 @@ def fake_text(monkeypatch):
     """The fake backend recognizes the given text in any speech."""
     def configure(text: str):
         monkeypatch.setenv("FAKE_TEXT", text)
-        get_asr_settings.cache_clear()
+        get_service_settings.cache_clear()
         return build_backend(Settings(_env_file=None, MODEL_BACKEND="fake"))
 
     yield configure
-    get_asr_settings.cache_clear()
+    get_service_settings.cache_clear()
 
 
 @pytest.mark.parametrize(

@@ -7,7 +7,7 @@ import numpy as np
 from loguru import logger
 
 from app.core.backends.base import Backend
-from app.core.config import get_asr_settings, Settings
+from app.core.config import get_service_settings, Settings
 
 
 class FakeBackend(Backend):
@@ -19,7 +19,7 @@ class FakeBackend(Backend):
     def __init__(self, settings: Settings, model: str) -> None:
         super().__init__(settings, model)
         self.latency_ms = settings.FAKE_LATENCY_MS
-        self.text = get_asr_settings().FAKE_TEXT
+        self.text = get_service_settings().FAKE_TEXT
         logger.warning("Fake backend is on: the answers are synthetic, do not measure or deploy them")
         logger.info("Fake model ready: latency_ms={} text='{}'", self.latency_ms, self.text)
 

@@ -1,15 +1,15 @@
 __all__ = (
-    "get_asr_settings",
     "get_project",
+    "get_service_settings",
     "get_settings",
-    "AsrSettings",
     "Project",
+    "ServiceSettings",
     "Settings",
     "AUDIO_SETTINGS",
     "ENGINE_SETTINGS",
     "VAD_SETTINGS",
 )
 
-from .asr import get_asr_settings, AsrSettings
 from .config import get_project, get_settings, Project, Settings
 from .constants import AUDIO_SETTINGS, ENGINE_SETTINGS, VAD_SETTINGS
+from .service import get_service_settings, ServiceSettings

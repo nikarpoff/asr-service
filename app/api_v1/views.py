@@ -9,7 +9,7 @@ from fastapi import (
 
 from app.core.audio import parse_media_type
 from app.core.auth import verify_token
-from app.core.config import get_asr_settings, get_project, AUDIO_SETTINGS
+from app.core.config import get_service_settings, get_project, AUDIO_SETTINGS
 from app.core.engine import InferenceEngine
 from app.core.exceptions import InputTooLargeError, InvalidInputError, InvalidParamsError
 from app.core import pipeline
@@ -75,7 +75,7 @@ async def recognize(
     with engine.admit():
         body = await _read_body(request, AUDIO_SETTINGS.MAX_BYTES)
         result = await engine.run(
-            pipeline.recognize, backend, body, media, language, get_asr_settings().MAX_AUDIO_SECONDS,
+            pipeline.recognize, backend, body, media, language, get_service_settings().MAX_AUDIO_SECONDS,
         )
 
     timings = current_timings().as_dict()

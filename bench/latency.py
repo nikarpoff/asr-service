@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core import pipeline
 from app.core.audio import parse_media_type
 from app.core.backends import Backend, build_backend
-from app.core.config import get_asr_settings, get_project, Settings
+from app.core.config import get_service_settings, get_project, Settings
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AUDIO = ROOT / "tests" / "data" / "questions" / "q001.wav"
@@ -115,7 +115,7 @@ def build(backend: str, model: Optional[str], device: str) -> tuple[Settings, Ba
 def measure(backend: Backend, body: bytes, n: int, warmup: int, language: str = "ru") -> list[float]:
     """Длительности n вызовов конвейера в мс после warmup холостых."""
     media = parse_media_type("audio/wav")
-    max_seconds = get_asr_settings().MAX_AUDIO_SECONDS
+    max_seconds = get_service_settings().MAX_AUDIO_SECONDS
     for _ in range(warmup):
         pipeline.recognize(backend, body, media, language, max_seconds)
 

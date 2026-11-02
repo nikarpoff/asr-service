@@ -7,13 +7,13 @@ import tomllib
 
 from pathlib import Path
 
-from app.core.config import AsrSettings, Settings
+from app.core.config import ServiceSettings, Settings
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def clear_settings_env(monkeypatch) -> None:
-    for name in (*Settings.model_fields, *AsrSettings.model_fields):
+    for name in (*Settings.model_fields, *ServiceSettings.model_fields):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -48,11 +48,11 @@ def test_python_312():
     assert (ROOT / ".python-version").read_text().strip() == "3.12"
 
 
-def test_asr_env_example_matches_defaults(monkeypatch):
+def test_service_env_example_matches_defaults(monkeypatch):
     clear_settings_env(monkeypatch)
     example = ROOT / ".env.example"
 
-    settings = AsrSettings(_env_file=None)
+    settings = ServiceSettings(_env_file=None)
     assert (settings.VAD_ENABLED, settings.MAX_AUDIO_SECONDS, settings.FAKE_TEXT) == (True, 30.0, "Где дверь?")
-    assert AsrSettings(_env_file=example).model_dump() == settings.model_dump()
-    assert [name for name in AsrSettings.model_fields if name not in example.read_text()] == []
+    assert ServiceSettings(_env_file=example).model_dump() == settings.model_dump()
+    assert [name for name in ServiceSettings.model_fields if name not in example.read_text()] == []

@@ -12,7 +12,7 @@ from typing import Any, ClassVar, Dict, FrozenSet, Optional
 
 import numpy as np
 
-from app.core.config import get_asr_settings, Settings, AUDIO_SETTINGS
+from app.core.config import get_service_settings, Settings, AUDIO_SETTINGS
 from app.core.vad import SileroVad
 
 DEFAULT_LANGUAGE = "ru"
@@ -30,7 +30,7 @@ class Backend(ABC):
         self.settings = settings
         self.model = model
         self.device = settings.TARGET_PLATFORM
-        self.vad: Optional[SileroVad] = SileroVad() if get_asr_settings().VAD_ENABLED else None
+        self.vad: Optional[SileroVad] = SileroVad() if get_service_settings().VAD_ENABLED else None
 
     @abstractmethod
     def recognize(self, audio: np.ndarray, language: str) -> str:

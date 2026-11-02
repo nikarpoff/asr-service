@@ -22,7 +22,7 @@ from loguru import logger
 from app.core import pipeline
 from app.core.audio import parse_media_type
 from app.core.backends import Backend
-from app.core.config import get_asr_settings, get_project
+from app.core.config import get_service_settings, get_project
 from app.core.text import normalize
 from bench.latency import build, git_sha
 
@@ -89,7 +89,7 @@ def read_manifest(path: Path) -> list[dict]:
 def evaluate(backend: Backend, manifest: Path, language: str = "ru") -> dict:
     """Распознаёт все записи манифеста и считает WER и CER по условиям."""
     media = parse_media_type("audio/wav")
-    max_seconds = get_asr_settings().MAX_AUDIO_SECONDS
+    max_seconds = get_service_settings().MAX_AUDIO_SECONDS
 
     items = []
     for entry in read_manifest(manifest):
