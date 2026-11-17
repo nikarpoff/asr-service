@@ -154,9 +154,9 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" -F "file=@tests/data/questions/q001.
 | Переменная | По умолчанию | |
 | --- | --- | --- |
 | `MODEL_BACKEND` | `fake` | бэкенд из реестра (раздел «Бэкенды и модели») |
-| `MODEL_NAME` | - | модель бэкенда; не задана - модель бэкенда по умолчанию |
+| `MODEL_NAME` | - | модель бэкенда (раздел «Бэкенды и модели»); не задана - модель бэкенда по умолчанию |
 | `TARGET_PLATFORM` | `cpu` | `cpu` или `cuda` |
-| `ARTIFACTS_PATH` | - | локальные веса; не задан - веса скачиваются в кэш |
+| `ARTIFACTS_PATH` | - | каталог весов: бэкенд берёт их из `<ARTIFACTS_PATH>/<бэкенд>/` и докачивает недостающие; не задан - веса скачиваются в кэш библиотеки |
 | `FAKE_LATENCY_MS` | `0` | время инференса, которое изображает `fake`, мс на вызов |
 | `FAKE_TEXT` | `Где дверь?` | текст, который `fake` «распознаёт» в любой речи |
 | `VAD_ENABLED` | `True` | обрезка тишины детектором речи; без речи - пустой текст без вызова модели |
@@ -176,22 +176,54 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" -F "file=@tests/data/questions/q001.
 
 Бэкенд выбирается `MODEL_BACKEND`. Реестр (`app/core/backends/registry.py`) импортирует модуль только выбранного бэкенда, поэтому библиотеки настоящих моделей - необязательные extras: без них сервис устанавливается и проходит быстрые тесты. Неизвестный бэкенд, неизвестная модель или бэкенд без своего extra останавливают старт с понятным сообщением, например `Backend 'whisper' requires the 'whisper' extra`.
 
-| `MODEL_BACKEND` | Extra | Модели | Состояние |
-| --- | --- | --- | --- |
-| `fake` | - | `fake`: текст `FAKE_TEXT` на любую речь, без весов и видеокарты | есть |
-| `gigaam` | `gigaam` | GigaAM: CTC и RNN-T | будет |
-| `tone` | `tone` | T-one, потоковая CTC-модель для русского языка | будет |
-| `whisper` | `whisper` | Whisper через faster-whisper: small, medium, large-v3-turbo | будет |
-| `vosk` | `vosk` | Vosk: small-ru, большая ru | будет |
+| `MODEL_BACKEND` | Extra | `MODEL_NAME` (по умолчанию - первая) | Устройство | Заметки |
+| --- | --- | --- | --- | --- |
+| `fake` | - | `fake` | - | текст `FAKE_TEXT` на любую речь, без весов и видеокарты |
+| `gigaam` | `gigaam` + профиль `cpu` или `gpu` (torch, torchaudio) | `v3_ctc`, `v3_rnnt`, `v3_e2e_ctc`, `v3_e2e_rnnt`, `v2_ctc`, `v2_rnnt` | `cpu`, `cuda` (энкодер в FP16) | GigaAM, Conformer для русского языка; `e2e` - с пунктуацией |
+| `tone` | - (ядро, onnxruntime) | `t-one` | `cpu`; `cuda` - если в onnxruntime есть CUDA-провайдер, иначе `cpu` с предупреждением | T-one, потоковая CTC-модель 8 кГц; запрос распознаётся целиком, поблочно по 300 мс, жадное декодирование без языковой модели |
+| `whisper` | `whisper` | `small`, `medium`, `large-v3-turbo` | `cpu` (int8), `cuda` (float16) | faster-whisper (CTranslate2), `language=ru`, `beam_size=1`, без контекста прошлых фраз и без своего VAD |
+| `vosk` | `vosk` | `small-ru` (`vosk-model-small-ru-0.22`, 45 МБ), `ru` (`vosk-model-ru-0.42`, 1,8 ГБ) | только `cpu`; при `cuda` - предупреждение | Kaldi; распознаватель создаётся на каждый запрос, модель общая |
+
+T-one работает на onnxruntime из ядра, поэтому своего extra у него нет: это CPU-модель смоук-теста AC-68. Пакет авторов `tone` не используется: он тянет pyctcdecode (numpy<2) и KenLM, который собирается из исходников. Модель ONNX сама считает признаки, а жадное CTC-декодирование - то же, что в пакете авторов. Версия весов закреплена в `app/core/config/constants.py` (`TONE_SETTINGS.REVISION`).
+
+GigaAM ставится из коммита репозитория авторов, а не с PyPI: релиз 0.1.0 на PyPI требует `torch<=2.5.1`. torchaudio собирается под одну версию torch, последняя версия torchaudio - 2.11, поэтому профили `cpu` и `gpu` держат torch 2.11. Своя версия onnxruntime GigaAM (1.23, для экспорта в ONNX, сервису не нужен) переопределена версией ядра в `[tool.uv] override-dependencies`.
+
+Установка extras:
+
+```bash
+uv sync --extra whisper                    # Whisper
+uv sync --extra vosk                       # Vosk
+uv sync --extra cpu --extra gigaam         # GigaAM на CPU
+```
 
 На `fake` сервис пишет предупреждение при старте, а `/v1/info` показывает `backend: fake`, поэтому подмена модели в замерах сразу видна.
+
+**Веса.** В образ веса не входят. При старте бэкенд берёт их из `ARTIFACTS_PATH/<бэкенд>/` и докачивает, если их там нет. Без `ARTIFACTS_PATH` веса загружаются в кэш библиотеки: `~/.cache/huggingface` (T-one, Whisper), `~/.cache/gigaam`, `~/.cache/vosk`. Заранее, для старта без сети, их скачивает `scripts/fetch_weights.py`: модель он не загружает в память. Этот скрипт вызывает `deployments/fetch-weights.sh` из образа сервиса.
+
+```bash
+MODEL_BACKEND=whisper MODEL_NAME=small ARTIFACTS_PATH=./model uv run python -m scripts.fetch_weights
+# fetch_weights: whisper/small -> model/whisper/small
+```
+
+| Источник весов | Где лежат |
+| --- | --- |
+| T-one | Hugging Face [`t-tech/T-one`](https://huggingface.co/t-tech/T-one), `model.onnx` (~140 МБ) |
+| Whisper | Hugging Face: [`Systran/faster-whisper-small`](https://huggingface.co/Systran/faster-whisper-small), [`Systran/faster-whisper-medium`](https://huggingface.co/Systran/faster-whisper-medium), [`mobiuslabsgmbh/faster-whisper-large-v3-turbo`](https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo) |
+| GigaAM | CDN авторов `cdn.chatwm.opensmodel.sberdevices.ru/GigaAM` (адрес задан в пакете `gigaam`) |
+| Vosk | [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models) |
+
+Лицензии сверены по первоисточникам (файлы `LICENSE` репозиториев, карточки моделей на Hugging Face, список моделей Vosk) 2026-11-17. Бэкендов под GPL и AGPL и весов с некоммерческой лицензией среди них нет; библиотеки настоящих моделей всё равно подключаются только как extras.
 
 | Модель | Лицензия | Коммерческое использование |
 | --- | --- | --- |
 | `fake` (код сервиса, без весов) | Apache-2.0 | да |
 | Silero VAD v6.2.3, `app/core/vad/silero_vad.onnx` (детектор речи, входит в ядро) | MIT ([app/core/vad/LICENSE](app/core/vad/LICENSE)) | да |
-
-Строки настоящих моделей добавляются вместе с их бэкендами, лицензии сверяются по первоисточникам.
+| T-one, веса [`t-tech/T-one`](https://huggingface.co/t-tech/T-one) | Apache-2.0 (карточка модели и [LICENSE](https://github.com/voicekit-team/T-one/blob/main/LICENSE) репозитория) | да |
+| GigaAM v2 и v3, библиотека [`gigaam`](https://github.com/salute-developers/GigaAM) и веса | MIT ([LICENSE](https://github.com/salute-developers/GigaAM/blob/main/LICENSE), карточка [`ai-sage/GigaAM-v3`](https://huggingface.co/ai-sage/GigaAM-v3)) | да |
+| Whisper small, medium, large-v3-turbo (веса OpenAI в формате CTranslate2) | MIT (карточки моделей на Hugging Face, [LICENSE](https://github.com/openai/whisper/blob/main/LICENSE) OpenAI) | да |
+| faster-whisper и CTranslate2 | MIT ([faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE), [CTranslate2](https://github.com/OpenNMT/CTranslate2/blob/master/LICENSE)) | да |
+| Vosk: библиотека и модели `vosk-model-small-ru-0.22`, `vosk-model-ru-0.42` | Apache-2.0 ([COPYING](https://github.com/alphacep/vosk-api/blob/master/COPYING), [список моделей](https://alphacephei.com/vosk/models)) | да |
+| torch, torchaudio (профили `cpu`, `gpu`) | BSD-3-Clause | да |
 
 ## Запуск
 
@@ -211,7 +243,7 @@ curl http://localhost:8102/health
 docker compose up -d --build
 ```
 
-Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль `cpu` или `gpu` и все бэкенды; `EXTRAS=""` - лёгкий образ только с `fake`).
+Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль `cpu` или `gpu` и все бэкенды: `cpu gigaam whisper vosk`; `EXTRAS=""` - лёгкий образ с `fake` и `tone`). Настоящая модель задаётся в `.env` (`MODEL_BACKEND`, `MODEL_NAME`); веса при этом скачиваются в `./model`, если задан `ARTIFACTS_PATH=/opt/model`, иначе - в кэш внутри контейнера.
 
 Локально:
 
@@ -221,7 +253,11 @@ uv run fastapi dev app/main.py
 uv run pytest -q -m "not model"
 ```
 
-Тесты с маркером `model` нужны весам и в быстрый прогон не входят. CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
+Тесты с маркером `model` нужны весам и в быстрый прогон не входят. Смоук настоящей модели (AC-68) - T-one на CPU, extras ему не нужны, нужна сеть или кэш с весами:
+
+```bash
+uv run pytest tests/test_model_smoke.py -q -m model
+``` CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
 
 ### Устройство
 
@@ -238,12 +274,14 @@ app/
 │   ├── audio/              # WAV, L16 и multipart -> отсчёты; моно и 16 кГц
 │   ├── vad/                # Silero VAD на onnxruntime, веса и лицензия MIT
 │   ├── text/               # нормализация ASR-4
-│   ├── backends/           # реестр бэкендов, базовый класс с recognize() и детектором речи, fake
+│   ├── backends/           # реестр, базовый класс с recognize() и детектором речи; fake, gigaam, tone, whisper, vosk
 │   ├── pipeline.py         # запрос: декодирование -> VAD -> модель -> нормализация, этапы timings
 │   ├── entities.py         # результат распознавания
 │   ├── engine.py           # бэкенд в пуле WORKERS, очередь QUEUE_MAX, прогрев
 │   └── exceptions.py       # доменные ошибки со status_code
 └── utils/                  # lifespan, логирование, middleware X-Request-ID и Server-Timing
+scripts/
+└── fetch_weights.py        # веса MODEL_BACKEND/MODEL_NAME заранее, в ARTIFACTS_PATH или кэш
 bench/
 ├── latency.py              # замер задержки, JSON EXP-2
 └── wer.py                  # WER и CER по манифесту вопросов
