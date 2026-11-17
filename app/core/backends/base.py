@@ -8,6 +8,7 @@ every model gets the same trimmed audio.
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, ClassVar, Dict, FrozenSet, Optional
 
 import numpy as np
@@ -31,6 +32,16 @@ class Backend(ABC):
         self.model = model
         self.device = settings.TARGET_PLATFORM
         self.vad: Optional[SileroVad] = SileroVad() if get_service_settings().VAD_ENABLED else None
+
+    @classmethod
+    def weights_root(cls, settings: Settings) -> Optional[Path]:
+        """Directory of the backend weights under ARTIFACTS_PATH; None - the cache of the model library."""
+        return settings.ARTIFACTS_PATH / cls.name if settings.ARTIFACTS_PATH else None
+
+    @classmethod
+    def fetch(cls, settings: Settings, model: str) -> Optional[Path]:
+        """Where the weights of the model are, downloaded unless already there; None - no weights. Blocking."""
+        return None
 
     @abstractmethod
     def recognize(self, audio: np.ndarray, language: str) -> str:
