@@ -19,9 +19,11 @@ ENV UV_PYTHON_DOWNLOADS=never
 # Create app directory
 WORKDIR /app
 
-# Extras to install: the cpu profile and the backends. EXTRAS="" leaves the
-# fake backend only - a light image for the end-to-end check
-ARG EXTRAS="cpu"
+# Extras to install: the cpu profile and the backends; T-one needs none, it runs on
+# the core onnxruntime. EXTRAS="" leaves the fake and the T-one backends only - a light
+# image for the end-to-end check. The weights are not in the image: they come into the
+# /opt/model volume or the cache
+ARG EXTRAS="cpu gigaam whisper vosk"
 
 # Install uv dependencies. One lock serves both profiles: the conflicting cpu and
 # gpu extras are resolved side by side in it, and --extra picks which one lands.
