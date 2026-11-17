@@ -14,3 +14,9 @@
 - Бэкенд `fake` стал отвечать текстом `FAKE_TEXT` (по умолчанию «Где дверь?»); добавлены настройки `VAD_ENABLED`, `MAX_AUDIO_SECONDS` и `FAKE_TEXT` в отдельном классе `ServiceSettings`.
 - Добавлены скрипты `bench/latency.py` (JSON EXP-2) и `bench/wer.py` (WER и CER по условиям `quiet` и `street_noise`), игрушечный манифест вопросов `tests/data/` с источниками записей в `SOURCES.md`.
 - Добавлены тесты API распознавания, звука, нормализации, контракта и WER; README дополнен разделами о распознавании и замерах.
+- Добавлены настоящие бэкенды ASR-3: `gigaam` (GigaAM v2 и v3, CTC и RNN-T, FP16-энкодер на CUDA), `tone` (T-one на onnxruntime ядра, без extra), `whisper` (faster-whisper, `language=ru`, `beam_size=1`, int8 на CPU) и `vosk` (`small-ru`, `ru`); extras `gigaam`, `whisper`, `vosk` с ленивым импортом.
+- Профили `cpu` и `gpu` перешли на torch 2.11 с torchaudio 2.11: последний torchaudio собран под эту версию torch, а он нужен GigaAM. GigaAM ставится из коммита репозитория авторов.
+- Добавлен `scripts/fetch_weights.py`: веса `MODEL_BACKEND`/`MODEL_NAME` скачиваются заранее в `ARTIFACTS_PATH/<бэкенд>/` или в кэш библиотеки; оттуда их берёт сервис при старте.
+- Образы по умолчанию собираются со всеми бэкендами профиля (`EXTRAS="cpu gigaam whisper vosk"` и `"gpu gigaam whisper vosk"`), веса в образ не входят.
+- Добавлены смоук-тест настоящей CPU-модели (`tests/test_model_smoke.py`, маркер `model`, T-one, WER не больше 30 %) и проверки реестра: у каждого extra-бэкенда есть свой extra и модуль.
+- README: таблица бэкендов и моделей, источники весов, таблица лицензий, сверенных по первоисточникам.

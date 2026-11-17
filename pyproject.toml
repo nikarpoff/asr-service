@@ -29,14 +29,38 @@ dependencies = [
 # ---------------------------------------------------------------------------
 [project.optional-dependencies]
 
+# torch and torchaudio serve GigaAM only. torchaudio is built against one torch
+# release, and 2.11 is its last one: torch stays on 2.11 with it.
+
 # CPU wheels, so no CUDA payload.
 cpu = [
-  "torch>=2.14.0,<2.15.0",
+  "torch>=2.11.0,<2.12.0",
+  "torchaudio>=2.11.0,<2.12.0",
 ]
 
 # CUDA wheels for the GPU image.
 gpu = [
-  "torch>=2.14.0,<2.15.0",
+  "torch>=2.11.0,<2.12.0",
+  "torchaudio>=2.11.0,<2.12.0",
+]
+
+# --- Backends (ASR-3) ---------------------------------------------
+# The T-one backend has no extra: it runs on the core onnxruntime.
+
+# GigaAM (MIT). Needs torch and torchaudio: install it together with the cpu or the gpu profile.
+# The PyPI release 0.1.0 pins torch<=2.5.1, so the package comes from the repository commit.
+gigaam = [
+  "gigaam",
+]
+
+# Whisper on CTranslate2 (MIT).
+whisper = [
+  "faster-whisper>=1.2.1,<2.0.0",
+]
+
+# Vosk (Apache-2.0), CPU only.
+vosk = [
+  "vosk>=0.3.45,<0.4.0",
 ]
 
 [dependency-groups]
@@ -49,6 +73,11 @@ dev = [
 # ---------------------------------------------------------------------------
 [tool.uv]
 conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+# gigaam pins onnxruntime==1.23.* for its ONNX export, which the service does not use;
+# the core needs a newer one for Silero VAD
+override-dependencies = [
+  "onnxruntime>=1.31.1,<2.0.0",
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -61,7 +90,12 @@ url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
+gigaam = { url = "https://github.com/salute-developers/GigaAM/archive/7447938d791c4f3e643386ee22c33777004293a5.zip" }
 torch = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu130", extra = "gpu", marker = "sys_platform != 'darwin'" },
+]
+torchaudio = [
   { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
   { index = "pytorch-cu130", extra = "gpu", marker = "sys_platform != 'darwin'" },
 ]

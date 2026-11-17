@@ -23,3 +23,35 @@ class VAD_SETTINGS:
     MIN_SPEECH_MS = 250                 # a shorter segment is a click or a cough, not a word
     MIN_SILENCE_MS = 100                # a shorter pause keeps the segment going
     SPEECH_PAD_MS = 100                 # kept around the speech: the trimmed edges do not cut the consonants
+
+
+class TONE_SETTINGS:
+    """T-one acoustic model: the constants of its ONNX export."""
+    REPOSITORY = "t-tech/T-one"         # Hugging Face repository of the authors
+    REVISION = "106f3b0b32a9e107eb613312e4ebc61ff3d53926"       # pinned: the answers do not change under a measurement
+    FILENAME = "model.onnx"
+    SAMPLE_RATE = 8000                  # telephony model: the 16 kHz input is resampled down
+    CHUNK_SAMPLES = 2400                # 300 ms, the fixed input of the streaming model
+    STATE_SIZE = 219729                 # flat state carried between the chunks
+    LABELS = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя "      # CTC tokens; indices past them are blank and service ones
+
+
+class WHISPER_SETTINGS:
+    """faster-whisper decoding (ASR-3)."""
+    BEAM_SIZE = 1                       # greedy search: speed over the last percent of quality
+    COMPUTE_TYPE_CPU = "int8"           # quantized weights: several times faster on CPU
+    COMPUTE_TYPE_CUDA = "float16"
+
+
+class VOSK_SETTINGS:
+    """Vosk models: MODEL_NAME to the archive of the model list."""
+    URL = "https://alphacephei.com/vosk/models"
+    ARCHIVES = {
+        "small-ru": "vosk-model-small-ru-0.22",        # 45 MB, for phones and small boards
+        "ru": "vosk-model-ru-0.42",                    # 1.8 GB, for servers
+    }
+
+
+class GIGAAM_SETTINGS:
+    """GigaAM loading."""
+    FP16_ENCODER = True                 # half precision encoder on CUDA; on CPU the library keeps float32

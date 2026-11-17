@@ -7,9 +7,13 @@ __all__ = (
     "Settings",
     "AUDIO_SETTINGS",
     "ENGINE_SETTINGS",
+    "GIGAAM_SETTINGS",
+    "TONE_SETTINGS",
     "VAD_SETTINGS",
+    "VOSK_SETTINGS",
+    "WHISPER_SETTINGS",
 )
 
 from .config import get_project, get_settings, Project, Settings
-from .constants import AUDIO_SETTINGS, ENGINE_SETTINGS, VAD_SETTINGS
+from .constants import AUDIO_SETTINGS, ENGINE_SETTINGS, GIGAAM_SETTINGS, TONE_SETTINGS, VAD_SETTINGS, VOSK_SETTINGS, WHISPER_SETTINGS
 from .service import get_service_settings, ServiceSettings

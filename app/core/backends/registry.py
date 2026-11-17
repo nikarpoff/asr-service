@@ -27,8 +27,10 @@ class BackendSpec:
 # Backends of the service (ASR-3); the key is the MODEL_BACKEND value
 BACKENDS: Dict[str, BackendSpec] = {
     "fake": BackendSpec("app.core.backends.fake:FakeBackend"),
-    "gigaam": BackendSpec("app.core.backends.gigaam:GigaAMBackend", "gigaam", ("gigaam", )),
-    "tone": BackendSpec("app.core.backends.tone:ToneBackend", "tone", ("tone", )),
+    # torch comes with the cpu or the gpu profile, not with the extra
+    "gigaam": BackendSpec("app.core.backends.gigaam:GigaAMBackend", "gigaam", ("gigaam", "torch", "torchaudio")),
+    # T-one runs on the core onnxruntime: no extra
+    "tone": BackendSpec("app.core.backends.tone:ToneBackend"),
     "whisper": BackendSpec("app.core.backends.whisper:WhisperBackend", "whisper", ("faster_whisper", )),
     "vosk": BackendSpec("app.core.backends.vosk:VoskBackend", "vosk", ("vosk", )),
 }
