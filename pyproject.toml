@@ -1,0 +1,112 @@
+[project]
+name = "asr-service"
+version = "0.1.0"
+description = "Распознавание русской речи для голосового ассистента незрячих"
+authors = [
+    {name = "Nikita Karpov", email = "nikita.karpov@ainergy.ru"}
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  # --- API --------------------------------------------------------
+  "fastapi[standard]>=0.162.0",
+  "uvicorn[standard]>=0.54.0",
+  "python-multipart>=0.0.33,<0.1.0",
+  "pydantic>=2.14.0",
+  "pydantic-settings>=2.16.0",
+  "loguru>=0.7.3",
+
+  # --- Models -----------------------------------------------------
+  "numpy>=2.5.0",
+  "huggingface-hub>=2.4.0",
+  # Silero VAD (ASR-2) runs on onnxruntime without torch: it is in the core, the fast tests need it
+  "onnxruntime>=1.31.1,<2.0.0",
+]
+
+# ---------------------------------------------------------------------------
+# Profiles. The backend libraries are extras of their own (NFR-13): the
+# registry imports a backend only when it is chosen, so the service installs
+# and passes its fast tests without them.
+# ---------------------------------------------------------------------------
+[project.optional-dependencies]
+
+# torch and torchaudio serve GigaAM only. torchaudio is built against one torch
+# release, and 2.11 is its last one: torch stays on 2.11 with it.
+
+# CPU wheels, so no CUDA payload.
+cpu = [
+  "torch>=2.11.0,<2.12.0",
+  "torchaudio>=2.11.0,<2.12.0",
+]
+
+# CUDA wheels for the GPU image.
+gpu = [
+  "torch>=2.11.0,<2.12.0",
+  "torchaudio>=2.11.0,<2.12.0",
+]
+
+# --- Backends (ASR-3) ---------------------------------------------
+# The T-one backend has no extra: it runs on the core onnxruntime.
+
+# GigaAM (MIT). Needs torch and torchaudio: install it together with the cpu or the gpu profile.
+# The PyPI release 0.1.0 pins torch<=2.5.1, so the package comes from the repository commit.
+gigaam = [
+  "gigaam",
+]
+
+# Whisper on CTranslate2 (MIT).
+whisper = [
+  "faster-whisper>=1.2.1,<2.0.0",
+]
+
+# Vosk (Apache-2.0), CPU only.
+vosk = [
+  "vosk>=0.3.45,<0.4.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.2.0",
+]
+
+# ---------------------------------------------------------------------------
+# uv
+# ---------------------------------------------------------------------------
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+# gigaam pins onnxruntime==1.23.* for its ONNX export, which the service does not use;
+# the core needs a newer one for Silero VAD
+override-dependencies = [
+  "onnxruntime>=1.31.1,<2.0.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+gigaam = { url = "https://github.com/salute-developers/GigaAM/archive/7447938d791c4f3e643386ee22c33777004293a5.zip" }
+torch = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu130", extra = "gpu", marker = "sys_platform != 'darwin'" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu130", extra = "gpu", marker = "sys_platform != 'darwin'" },
+]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+  "model: needs model weights; out of the fast run",
+]
+addopts = "--strict-markers"

@@ -1,0 +1,4 @@
+{"id": "q001", "audio": "questions/q001.wav", "text": "дверь", "condition": "quiet", "image_id": 1}
+{"id": "q002", "audio": "questions/q002.wav", "text": "стул", "condition": "quiet", "image_id": 1}
+{"id": "q003", "audio": "questions/q003.wav", "text": "где", "condition": "street_noise", "image_id": 2}
+{"id": "q004", "audio": "questions/q004.wav", "text": "окно", "condition": "street_noise", "image_id": 2}
