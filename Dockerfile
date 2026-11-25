@@ -12,7 +12,7 @@ WORKDIR /app
 # Extras to install: the gpu profile and the backends; T-one needs none, it runs on
 # the core onnxruntime. EXTRAS="" leaves the fake and the T-one backends only.
 # The weights are not in the image: they come into the /opt/model volume or the cache
-ARG EXTRAS="gpu gigaam whisper vosk"
+ARG EXTRAS="gpu gigaam gigaam_onnx whisper vosk"
 
 # Install uv dependencies. One lock serves both profiles: the conflicting cpu and
 # gpu extras are resolved side by side in it, and --extra picks which one lands.
@@ -23,6 +23,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy code
 COPY . /app
+
+# The gpu profile brings onnxruntime-gpu next to the core onnxruntime: both install the same
+# module, so the CPU one is removed and the CUDA one reinstalled (README, scripts/use-onnxruntime-gpu.sh)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    if printf ' %s ' $EXTRAS | grep -q ' gpu '; then VIRTUAL_ENV=/app/.venv scripts/use-onnxruntime-gpu.sh; fi
 
 # RUNTIME
 FROM nvidia/cuda:13.2.1-cudnn-runtime-ubuntu22.04
