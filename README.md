@@ -283,6 +283,37 @@ uv sync --frozen --extra gpu --extra gigaam_onnx --extra whisper --extra vosk
 scripts/use-onnxruntime-gpu.sh
 ```
 
+Веса скачиваются заранее (DEP-6), иначе первая загрузка попадёт в тест. С `ARTIFACTS_PATH` тесты берут веса оттуда, без него - из кэшей библиотек:
+
+```bash
+for m in v3_ctc v3_rnnt; do ARTIFACTS_PATH=./model uv run --no-sync python -m scripts.fetch_weights --backend gigaam_onnx --model $m || exit 1; done
+```
+
+Тесты `tests/test_model_machine.py` (маркер `model`; пороги - как у смоука AC-68: WER по `tests/data/questions.jsonl` не больше 30 %, 2 с тишины - пустой текст у самой модели, мимо детектора речи):
+
+| Тест | Что проверяет |
+| --- | --- |
+| `test_backend_recognizes_questions_cuda[gigaam_onnx-v3_ctc]`, `[gigaam_onnx-v3_rnnt]` | GigaAM-v3 в ONNX на `cuda` (AC-20) |
+| `test_backend_recognizes_questions_cuda[whisper-medium]`, `[whisper-large-v3-turbo]` | Whisper на `cuda`, float16 (AC-21) |
+| `test_gigaam_onnx_cuda_provider_cuda` | у `v3_ctc` на `cuda` первый провайдер всех сессий onnxruntime - `CUDAExecutionProvider`, `params.device` - `cuda` (AC-43) |
+| `test_vosk_ru_recognizes_questions` | Vosk `ru` (`vosk-model-ru-0.42`, 1,8 ГБ) на CPU (AC-22) |
+| `test_gigaam_onnx_recognizes_questions_cpu` | GigaAM-v3 `v3_ctc` в ONNX на CPU (MA-1) |
+
+```bash
+uv run --no-sync pytest "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[gigaam_onnx-v3_ctc]" "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[gigaam_onnx-v3_rnnt]" -q -m model    # AC-20
+uv run --no-sync pytest "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[whisper-medium]" "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[whisper-large-v3-turbo]" -q -m model      # AC-21
+uv run --no-sync pytest "tests/test_model_machine.py::test_vosk_ru_recognizes_questions" -q -m model      # AC-22
+uv run --no-sync pytest "tests/test_model_machine.py::test_gigaam_onnx_cuda_provider_cuda" -q -m model    # AC-43
+```
+
+Тесты на CUDA проверяют видеокарту первой строкой, до загрузки весов: без неё они падают за секунды с «CUDA is not available», а не пропускаются (AC-30). Проверка - torch, если он стоит, а у `gigaam_onnx` ещё `CUDAExecutionProvider` в onnxruntime; пустой `CUDA_VISIBLE_DEVICES` - тоже «нет видеокарты»:
+
+```bash
+CUDA_VISIBLE_DEVICES= uv run --no-sync pytest tests/test_model_machine.py -q -m model -k cuda    # exit 1, 5 failed
+```
+
+Ограничения: тестовый манифест - четыре записи (два слова в тишине, два на уличном шуме), поэтому WER здесь - смоук качества, а не замер; замер - `bench/wer.py` на наборе EXP-1. Каждый тест грузит свою модель и освобождает её в конце, чтобы на видеокарте 8 ГБ не держать несколько моделей сразу.
+
 ### Устройство
 
 ```
