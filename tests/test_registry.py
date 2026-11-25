@@ -73,8 +73,17 @@ def test_registry_missing_library_on_import_fails(tmp_path, monkeypatch):
 
 def test_registry_lists_asr_backends():
     # ASR-3: the backends of the service, the fake one among them
-    assert sorted(BACKENDS) == ["fake", "gigaam", "tone", "vosk", "whisper"]
-    assert EXTRA_BACKENDS == ["gigaam", "vosk", "whisper"]
+    assert sorted(BACKENDS) == ["fake", "gigaam", "gigaam_onnx", "tone", "vosk", "whisper"]
+    assert EXTRA_BACKENDS == ["gigaam", "gigaam_onnx", "vosk", "whisper"]
+
+
+def test_gigaam_onnx_requires_extra(monkeypatch):
+    # AC-44: onnx-asr is not installed, as in the fast environment
+    real_find_spec = registry.find_spec
+    monkeypatch.setattr(registry, "find_spec", lambda package: None if package == "onnx_asr" else real_find_spec(package))
+
+    with pytest.raises(BackendError, match=re.escape("Backend 'gigaam_onnx' requires the 'gigaam_onnx' extra")):
+        build_backend(make_settings(MODEL_BACKEND="gigaam_onnx"))
 
 
 @pytest.mark.parametrize("name", EXTRA_BACKENDS)
