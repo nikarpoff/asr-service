@@ -254,7 +254,7 @@ curl http://localhost:8102/health
 docker compose up -d --build
 ```
 
-Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль `cpu` или `gpu` и все бэкенды: `cpu gigaam whisper vosk`; `EXTRAS=""` - лёгкий образ с `fake` и `tone`). Настоящая модель задаётся в `.env` (`MODEL_BACKEND`, `MODEL_NAME`); веса при этом скачиваются в `./model`, если задан `ARTIFACTS_PATH=/opt/model`, иначе - в кэш внутри контейнера.
+Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль и бэкенды: `cpu gigaam whisper vosk` в `Dockerfile.cpu` и `gpu gigaam gigaam_onnx whisper vosk` в CUDA-образе `Dockerfile`; `EXTRAS=""` - лёгкий образ с `fake` и `tone`). Если в `EXTRAS` есть `gpu`, CUDA-образ после `uv sync` запускает `scripts/use-onnxruntime-gpu.sh` (см. ниже). Настоящая модель задаётся в `.env` (`MODEL_BACKEND`, `MODEL_NAME`); веса при этом скачиваются в `./model`, если задан `ARTIFACTS_PATH=/opt/model`, иначе - в кэш внутри контейнера.
 
 Локально:
 
@@ -268,7 +268,20 @@ uv run pytest -q -m "not model"
 
 ```bash
 uv run pytest tests/test_model_smoke.py -q -m model
-``` CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
+```
+
+**onnxruntime с CUDA.** Ядро ставит `onnxruntime` (CPU) для детектора речи, а профиль `gpu` добавляет `onnxruntime-gpu` той же версии: он нужен `gigaam_onnx` (и T-one) на видеокарте. Оба пакета ставят один и тот же модуль `onnxruntime`, и uv ставит их оба - маркеры extras в зависимостях ядра этого не меняют. Поэтому после каждого `uv sync` с профилем `gpu` запускается `scripts/use-onnxruntime-gpu.sh`: он удаляет `onnxruntime`, заново ставит `onnxruntime-gpu` версии из `uv.lock` (`--reinstall --no-deps`) и проверяет, что в сборке есть `CUDAExecutionProvider`. **`uv sync` без скрипта вернёт CPU-сборку**, и `gigaam_onnx` на `cuda` откажется стартовать.
+
+CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
+
+### Тесты на машине моделей
+
+Среда с pytest и всеми бэкендами (G-3), на машине с видеокартой:
+
+```bash
+uv sync --frozen --extra gpu --extra gigaam_onnx --extra whisper --extra vosk
+scripts/use-onnxruntime-gpu.sh
+```
 
 ### Устройство
 
@@ -292,7 +305,8 @@ app/
 │   └── exceptions.py       # доменные ошибки со status_code
 └── utils/                  # lifespan, логирование, middleware X-Request-ID и Server-Timing
 scripts/
-└── fetch_weights.py        # веса MODEL_BACKEND/MODEL_NAME заранее, в ARTIFACTS_PATH или кэш
+├── fetch_weights.py        # веса MODEL_BACKEND/MODEL_NAME заранее, в ARTIFACTS_PATH или кэш
+└── use-onnxruntime-gpu.sh  # после uv sync с профилем gpu: onnxruntime -> onnxruntime-gpu
 bench/
 ├── latency.py              # замер задержки, JSON EXP-2
 └── wer.py                  # WER и CER по манифесту вопросов
