@@ -1,5 +1,11 @@
 # Changelog
 
+### v0.2.0
+- Порог детектора речи `VAD_SETTINGS.THRESHOLD` снижен с 0,5 до 0,3: на уличном шуме детектор больше не отрезает начало слова (`q004` - «окно», а не «но»), а шум без речи речью по-прежнему не считается. Добавлены тесты `tests/test_model_vad.py` (маркер `model`), README описывает порог и замер.
+- Добавлен бэкенд `gigaam_onnx`: GigaAM-v3 `v3_ctc` и `v3_rnnt` в ONNX на onnx-asr 0.12 (extra `gigaam_onnx`), веса `istupakov/gigaam-v3-onnx` на закреплённой ревизии, только файлы полной точности. `fetch_weights` скачивает их в `ARTIFACTS_PATH/gigaam_onnx/` или в кэш Hugging Face, сервис загружает модель из этого каталога без сети. На `cuda` откат onnxruntime на CPU останавливает старт ошибкой; `/v1/info` показывает провайдеры сессий и ревизию.
+- Профиль `gpu` ставит `onnxruntime-gpu` той же версии, что `onnxruntime` ядра (оба - 1.32.0); `scripts/use-onnxruntime-gpu.sh` после `uv sync` заменяет CPU-сборку на CUDA-сборку. CUDA-образ вызывает его и по умолчанию собирается с `gigaam_onnx` (`EXTRAS="gpu gigaam gigaam_onnx whisper vosk"`).
+- Добавлены тесты машины моделей `tests/test_model_machine.py`: GigaAM-v3 в ONNX и Whisper `medium`, `large-v3-turbo` на CUDA, провайдер CUDA у `gigaam_onnx`, Vosk `ru` и `gigaam_onnx` на CPU. Без видеокарты тесты на CUDA падают за секунды, а не пропускаются. README описывает среду и команды.
+
 ### v0.1.0
 - Добавлены копии эталонных контрактов из репозитория Шлюза в `tests/contract/`.
 - Добавлена выдержка из общей спецификации в `docs/spec.md`.
