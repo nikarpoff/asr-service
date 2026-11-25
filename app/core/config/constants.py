@@ -55,3 +55,19 @@ class VOSK_SETTINGS:
 class GIGAAM_SETTINGS:
     """GigaAM loading."""
     FP16_ENCODER = True                 # half precision encoder on CUDA; on CPU the library keeps float32
+
+
+class GIGAAM_ONNX_SETTINGS:
+    """GigaAM-v3 exported to ONNX for onnx-asr: MODEL_NAME to the onnx-asr model and its files."""
+    REPOSITORY = "istupakov/gigaam-v3-onnx"     # ONNX export of ai-sage/GigaAM-v3 that onnx-asr maps its gigaam-v3 models to
+    REVISION = "322c3b29492673eb7d0b434bfa9dfb8653e34d02"       # pinned: the answers do not change under a measurement
+    MODELS = {
+        "v3_ctc": "gigaam-v3-ctc",
+        "v3_rnnt": "gigaam-v3-rnnt",
+    }
+    # Full precision only: no *.int8.onnx; the e2e models are out of the scope
+    FILES = {
+        "v3_ctc": ("v3_ctc.onnx", "v3_ctc.yaml"),
+        "v3_rnnt": ("v3_rnnt_encoder.onnx", "v3_rnnt_decoder.onnx", "v3_rnnt_joint.onnx", "v3_rnnt.yaml"),
+    }
+    COMMON_FILES = ("config.json", "v3_vocab.txt")     # config.json gives onnx-asr the v3 feature extractor

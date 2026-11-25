@@ -88,6 +88,9 @@ cpu = [
 gigaam = [
     { name = "gigaam" },
 ]
+gigaam-onnx = [
+    { name = "onnx-asr" },
+]
 gpu = [
     { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-11-asr-service-gpu') or (extra == 'extra-11-asr-service-cpu' and extra == 'extra-11-asr-service-gpu')" },
     { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "(sys_platform != 'darwin' and extra == 'extra-11-asr-service-gpu') or (extra == 'extra-11-asr-service-cpu' and extra == 'extra-11-asr-service-gpu')" },
@@ -114,6 +117,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=2.4.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.5.0" },
+    { name = "onnx-asr", marker = "extra == 'gigaam-onnx'", specifier = ">=0.12.0,<0.13.0" },
     { name = "onnxruntime", specifier = ">=1.31.1,<2.0.0" },
     { name = "pydantic", specifier = ">=2.14.0" },
     { name = "pydantic-settings", specifier = ">=2.16.0" },
@@ -129,7 +133,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
     { name = "vosk", marker = "extra == 'vosk'", specifier = ">=0.3.45,<0.4.0" },
 ]
-provides-extras = ["cpu", "gpu", "gigaam", "whisper", "vosk"]
+provides-extras = ["cpu", "gpu", "gigaam", "gigaam-onnx", "whisper", "vosk"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9.2.0" }]
@@ -1035,6 +1039,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/65/68/cc8b8c05469fe08384b446304ad7e6256131ca0463bf6962366eebec98c0/onnx-1.19.1-cp312-cp312-win32.whl", hash = "sha256:638bc56ff1a5718f7441e887aeb4e450f37a81c6eac482040381b140bd9ba601", size = 16345111, upload-time = "2025-10-10T04:00:34.982Z" },
     { url = "https://files.pythonhosted.org/packages/c7/5e/d1cb16693598a512c2cf9ffe0841d8d8fd2c83ae8e889efd554f5aa427cf/onnx-1.19.1-cp312-cp312-win_amd64.whl", hash = "sha256:bc7e2e4e163e679721e547958b5a7db875bf822cad371b7c1304aa4401a7c7a4", size = 16465621, upload-time = "2025-10-10T04:00:39.107Z" },
     { url = "https://files.pythonhosted.org/packages/90/32/da116cc61fdef334782aa7f87a1738431dd1af1a5d1a44bd95d6d51ad260/onnx-1.19.1-cp312-cp312-win_arm64.whl", hash = "sha256:17c215b1c0f20fe93b4cbe62668247c1d2294b9bc7f6be0ca9ced28e980c07b7", size = 16437505, upload-time = "2025-10-10T04:00:42.255Z" },
+]
+
+[[package]]
+name = "onnx-asr"
+version = "0.12.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4c/11/136f556cda02ecc172674dcea79232e9e84e74b951bbcd2e2722117f633b/onnx_asr-0.12.0.tar.gz", hash = "sha256:c1fcacddbced392f9f769ed5c6223f4ce739a6e4549346de33b9b520d4ead713", size = 45991, upload-time = "2026-07-15T00:09:58.852Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/60/2fa469a2ee674c35ab48821a1039762ae7b9d0b88188ac1012e779477f76/onnx_asr-0.12.0-py3-none-any.whl", hash = "sha256:5e7ceca454609819ea7833f61e2302e0c8f6ece4f8a78b66c5daba53cb51de4a", size = 3980006, upload-time = "2026-07-15T00:09:57.322Z" },
 ]
 
 [[package]]

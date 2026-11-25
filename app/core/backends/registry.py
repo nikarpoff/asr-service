@@ -29,6 +29,8 @@ BACKENDS: Dict[str, BackendSpec] = {
     "fake": BackendSpec("app.core.backends.fake:FakeBackend"),
     # torch comes with the cpu or the gpu profile, not with the extra
     "gigaam": BackendSpec("app.core.backends.gigaam:GigaAMBackend", "gigaam", ("gigaam", "torch", "torchaudio")),
+    # onnxruntime comes with the core or, with CUDA, with the gpu profile, not with the extra
+    "gigaam_onnx": BackendSpec("app.core.backends.gigaam_onnx:GigaAMOnnxBackend", "gigaam_onnx", ("onnx_asr", )),
     # T-one runs on the core onnxruntime: no extra
     "tone": BackendSpec("app.core.backends.tone:ToneBackend"),
     "whisper": BackendSpec("app.core.backends.whisper:WhisperBackend", "whisper", ("faster_whisper", )),

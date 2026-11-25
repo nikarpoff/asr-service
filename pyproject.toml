@@ -53,6 +53,12 @@ gigaam = [
   "gigaam",
 ]
 
+# GigaAM-v3 exported to ONNX, on onnx-asr (MIT). No onnx-asr [cpu]/[gpu] extras: onnxruntime
+# comes with the core, and with CUDA - with the gpu profile.
+gigaam_onnx = [
+  "onnx-asr>=0.12.0,<0.13.0",
+]
+
 # Whisper on CTranslate2 (MIT).
 whisper = [
   "faster-whisper>=1.2.1,<2.0.0",
