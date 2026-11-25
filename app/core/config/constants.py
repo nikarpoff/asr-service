@@ -17,8 +17,8 @@ class AUDIO_SETTINGS:
 
 
 class VAD_SETTINGS:
-    """Silero VAD thresholds: the defaults of its get_speech_timestamps."""
-    THRESHOLD = 0.5                     # a window with a higher speech probability is speech
+    """Silero VAD thresholds; the speech threshold is below the Silero default of 0.5, the rest are its defaults."""
+    THRESHOLD = 0.3                     # a window with a higher speech probability is speech; 0.5 cut the first vowel off a word in street noise
     NEG_THRESHOLD_GAP = 0.15            # speech ends below THRESHOLD - gap: no flapping around the threshold
     MIN_SPEECH_MS = 250                 # a shorter segment is a click or a cough, not a word
     MIN_SILENCE_MS = 100                # a shorter pause keeps the segment going
@@ -55,3 +55,19 @@ class VOSK_SETTINGS:
 class GIGAAM_SETTINGS:
     """GigaAM loading."""
     FP16_ENCODER = True                 # half precision encoder on CUDA; on CPU the library keeps float32
+
+
+class GIGAAM_ONNX_SETTINGS:
+    """GigaAM-v3 exported to ONNX for onnx-asr: MODEL_NAME to the onnx-asr model and its files."""
+    REPOSITORY = "istupakov/gigaam-v3-onnx"     # ONNX export of ai-sage/GigaAM-v3 that onnx-asr maps its gigaam-v3 models to
+    REVISION = "322c3b29492673eb7d0b434bfa9dfb8653e34d02"       # pinned: the answers do not change under a measurement
+    MODELS = {
+        "v3_ctc": "gigaam-v3-ctc",
+        "v3_rnnt": "gigaam-v3-rnnt",
+    }
+    # Full precision only: no *.int8.onnx; the e2e models are out of the scope
+    FILES = {
+        "v3_ctc": ("v3_ctc.onnx", "v3_ctc.yaml"),
+        "v3_rnnt": ("v3_rnnt_encoder.onnx", "v3_rnnt_decoder.onnx", "v3_rnnt_joint.onnx", "v3_rnnt.yaml"),
+    }
+    COMMON_FILES = ("config.json", "v3_vocab.txt")     # config.json gives onnx-asr the v3 feature extractor

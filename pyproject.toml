@@ -38,10 +38,13 @@ cpu = [
   "torchaudio>=2.11.0,<2.12.0",
 ]
 
-# CUDA wheels for the GPU image.
+# CUDA wheels for the GPU image. onnxruntime-gpu gives the CUDA provider to gigaam_onnx and
+# T-one; it installs the same `onnxruntime` module as the core onnxruntime, and uv installs
+# both of them: scripts/use-onnxruntime-gpu.sh has to run after `uv sync` (README).
 gpu = [
   "torch>=2.11.0,<2.12.0",
   "torchaudio>=2.11.0,<2.12.0",
+  "onnxruntime-gpu>=1.31.1,<2.0.0",
 ]
 
 # --- Backends (ASR-3) ---------------------------------------------
@@ -51,6 +54,12 @@ gpu = [
 # The PyPI release 0.1.0 pins torch<=2.5.1, so the package comes from the repository commit.
 gigaam = [
   "gigaam",
+]
+
+# GigaAM-v3 exported to ONNX, on onnx-asr (MIT). No onnx-asr [cpu]/[gpu] extras: onnxruntime
+# comes with the core, and with CUDA - with the gpu profile.
+gigaam_onnx = [
+  "onnx-asr>=0.12.0,<0.13.0",
 ]
 
 # Whisper on CTranslate2 (MIT).

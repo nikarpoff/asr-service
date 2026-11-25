@@ -168,7 +168,9 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" -F "file=@tests/data/questions/q001.
 | `LOG_LEVEL` | `INFO` | `TRACE`, `DEBUG`, `INFO`, `SUCCESS`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOG_DIAGNOSE` | `False` | значения переменных в трейсбеках; только для отладки - в логи попадут данные запросов и токены |
 
-Пороги моделей и эвристик - не переменные окружения, а константы в `app/core/config/constants.py`: лимит тела 4 МиБ, диапазон частот и каналов, пороги детектора речи (вероятность 0,5, речь не короче 250 мс, пауза 100 мс, запас 100 мс по краям).
+Пороги моделей и эвристик - не переменные окружения, а константы в `app/core/config/constants.py`: лимит тела 4 МиБ, диапазон частот и каналов, пороги детектора речи (вероятность 0,3, речь не короче 250 мс, пауза 100 мс, запас 100 мс по краям).
+
+**Порог детектора речи - 0,3, а не 0,5 (значение Silero по умолчанию).** Порог общий для всех бэкендов. Замер 2026-11-22 на T-one (CPU, манифест `tests/data/questions.jsonl`, `bench.wer.evaluate`): при 0,5 начало речи в записи `q004` с уличным шумом находится на 0,54 с, звук «о» (вероятность речи 0,39-0,42 на 0,35-0,45 с) отрезается, и «окно» распознаётся как «но» - WER 0,25 против 0,0 без детектора. При 0,3 начало речи - 0,35 с, WER 0,0, как без детектора. Порог 0,3 взят из проекта автора, где он проверен на его данных; он оставляет наибольший запас на шуме. Шум до начала речи (первые 0,3 с `q003` и `q004`) детектор по-прежнему речью не считает: вероятность речи там не выше 0,02. Остальные пороги - значения Silero: ограничение длины речи не нужно, длину вопроса ограничивают Шлюз и `MAX_AUDIO_SECONDS`, а длинная пауза на обрезку от первой до последней речи почти не влияет. Оба случая проверяют тесты `tests/test_model_vad.py` (маркер `model`).
 
 Настройки распознавания (`VAD_ENABLED`, `MAX_AUDIO_SECONDS`, `FAKE_TEXT`) читает свой класс `ServiceSettings` (`app/core/config/service.py`) из того же окружения и `.env`: класс `Settings` общий для трёх сервисов ИИ и одинаков в них.
 
@@ -180,11 +182,16 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" -F "file=@tests/data/questions/q001.
 | --- | --- | --- | --- | --- |
 | `fake` | - | `fake` | - | текст `FAKE_TEXT` на любую речь, без весов и видеокарты |
 | `gigaam` | `gigaam` + профиль `cpu` или `gpu` (torch, torchaudio) | `v3_ctc`, `v3_rnnt`, `v3_e2e_ctc`, `v3_e2e_rnnt`, `v2_ctc`, `v2_rnnt` | `cpu`, `cuda` (энкодер в FP16) | GigaAM, Conformer для русского языка; `e2e` - с пунктуацией |
+| `gigaam_onnx` | `gigaam_onnx` (onnx-asr); onnxruntime - ядра, с CUDA - профиля `gpu` | `v3_ctc`, `v3_rnnt` | `cpu`, `cuda` (только через `CUDAExecutionProvider`: без него старт останавливается ошибкой, а не уходит на CPU) | GigaAM-v3 в ONNX на onnx-asr; полная точность, без `int8` и `e2e` |
 | `tone` | - (ядро, onnxruntime) | `t-one` | `cpu`; `cuda` - если в onnxruntime есть CUDA-провайдер, иначе `cpu` с предупреждением | T-one, потоковая CTC-модель 8 кГц; запрос распознаётся целиком, поблочно по 300 мс, жадное декодирование без языковой модели |
 | `whisper` | `whisper` | `small`, `medium`, `large-v3-turbo` | `cpu` (int8), `cuda` (float16) | faster-whisper (CTranslate2), `language=ru`, `beam_size=1`, без контекста прошлых фраз и без своего VAD |
 | `vosk` | `vosk` | `small-ru` (`vosk-model-small-ru-0.22`, 45 МБ), `ru` (`vosk-model-ru-0.42`, 1,8 ГБ) | только `cpu`; при `cuda` - предупреждение | Kaldi; распознаватель создаётся на каждый запрос, модель общая |
 
 T-one работает на onnxruntime из ядра, поэтому своего extra у него нет: это CPU-модель смоук-теста AC-68. Пакет авторов `tone` не используется: он тянет pyctcdecode (numpy<2) и KenLM, который собирается из исходников. Модель ONNX сама считает признаки, а жадное CTC-декодирование - то же, что в пакете авторов. Версия весов закреплена в `app/core/config/constants.py` (`TONE_SETTINGS.REVISION`).
+
+**`gigaam_onnx`.** Те же модели GigaAM-v3 (`v3_ctc`, `v3_rnnt`), что у `gigaam`, но в ONNX-экспорте [`istupakov/gigaam-v3-onnx`](https://huggingface.co/istupakov/gigaam-v3-onnx) (`base_model: ai-sage/GigaAM-v3`) на библиотеке [onnx-asr](https://github.com/istupakov/onnx-asr): она сопоставляет этим весам модели `gigaam-v3-ctc` и `gigaam-v3-rnnt`. Ревизия весов закреплена в `app/core/config/constants.py` (`GIGAAM_ONNX_SETTINGS.REVISION`, `322c3b29492673eb7d0b434bfa9dfb8653e34d02`); скачиваются только файлы полной точности выбранной модели: `config.json`, `v3_vocab.txt`, `v3_ctc.onnx` и `v3_ctc.yaml` или `v3_rnnt_{encoder,decoder,joint}.onnx` и `v3_rnnt.yaml` (около 0,9 ГБ на модель). Бэкенд загружает модель из каталога весов (`onnx_asr.load_model(<модель>, path=<каталог>)`), сама библиотека при старте в сеть не ходит. На `cuda` после загрузки бэкенд проверяет фактические провайдеры сессий onnxruntime: если первый из них не `CUDAExecutionProvider`, это ошибка, а не тихий откат на CPU, как у T-one. `/v1/info` показывает их в `params.providers`.
+
+Бэкенд `gigaam` остаётся: библиотека `gigaam` нужна для GigaAM v2 и моделей `e2e`, а для v3 - если продлят сертификат CDN авторов (`cdn.chatwm.opensmodel.sberdevices.ru` с 2026-11-04 отдаёт просроченный сертификат, а Hugging Face в библиотеке нет). Отдельное имя бэкенда, а не модель `gigaam`: у них разные библиотеки и extras (torch против onnxruntime), а реестр проверяет и импортирует extra по имени бэкенда.
 
 GigaAM ставится из коммита репозитория авторов, а не с PyPI: релиз 0.1.0 на PyPI требует `torch<=2.5.1`. torchaudio собирается под одну версию torch, последняя версия torchaudio - 2.11, поэтому профили `cpu` и `gpu` держат torch 2.11. Своя версия onnxruntime GigaAM (1.23, для экспорта в ONNX, сервису не нужен) переопределена версией ядра в `[tool.uv] override-dependencies`.
 
@@ -194,11 +201,12 @@ GigaAM ставится из коммита репозитория авторо�
 uv sync --extra whisper                    # Whisper
 uv sync --extra vosk                       # Vosk
 uv sync --extra cpu --extra gigaam         # GigaAM на CPU
+uv sync --extra gigaam_onnx                # GigaAM-v3 в ONNX на CPU
 ```
 
 На `fake` сервис пишет предупреждение при старте, а `/v1/info` показывает `backend: fake`, поэтому подмена модели в замерах сразу видна.
 
-**Веса.** В образ веса не входят. При старте бэкенд берёт их из `ARTIFACTS_PATH/<бэкенд>/` и докачивает, если их там нет. Без `ARTIFACTS_PATH` веса загружаются в кэш библиотеки: `~/.cache/huggingface` (T-one, Whisper), `~/.cache/gigaam`, `~/.cache/vosk`. Заранее, для старта без сети, их скачивает `scripts/fetch_weights.py`: модель он не загружает в память. Этот скрипт вызывает `deployments/fetch-weights.sh` из образа сервиса.
+**Веса.** В образ веса не входят. При старте бэкенд берёт их из `ARTIFACTS_PATH/<бэкенд>/` и докачивает, если их там нет. Без `ARTIFACTS_PATH` веса загружаются в кэш библиотеки: `~/.cache/huggingface` (T-one, Whisper, GigaAM-v3 в ONNX), `~/.cache/gigaam`, `~/.cache/vosk`. Заранее, для старта без сети, их скачивает `scripts/fetch_weights.py`: модель он не загружает в память. Этот скрипт вызывает `deployments/fetch-weights.sh` из образа сервиса.
 
 ```bash
 MODEL_BACKEND=whisper MODEL_NAME=small ARTIFACTS_PATH=./model uv run python -m scripts.fetch_weights
@@ -209,10 +217,11 @@ MODEL_BACKEND=whisper MODEL_NAME=small ARTIFACTS_PATH=./model uv run python -m s
 | --- | --- |
 | T-one | Hugging Face [`t-tech/T-one`](https://huggingface.co/t-tech/T-one), `model.onnx` (~140 МБ) |
 | Whisper | Hugging Face: [`Systran/faster-whisper-small`](https://huggingface.co/Systran/faster-whisper-small), [`Systran/faster-whisper-medium`](https://huggingface.co/Systran/faster-whisper-medium), [`mobiuslabsgmbh/faster-whisper-large-v3-turbo`](https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo) |
+| GigaAM-v3 в ONNX (`gigaam_onnx`) | Hugging Face [`istupakov/gigaam-v3-onnx`](https://huggingface.co/istupakov/gigaam-v3-onnx), ревизия `322c3b29492673eb7d0b434bfa9dfb8653e34d02`; проверка сертификата не отключается |
 | GigaAM | CDN авторов `cdn.chatwm.opensmodel.sberdevices.ru/GigaAM` (адрес задан в пакете `gigaam`) |
 | Vosk | [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models) |
 
-Лицензии сверены по первоисточникам (файлы `LICENSE` репозиториев, карточки моделей на Hugging Face, список моделей Vosk) 2026-11-17. Бэкендов под GPL и AGPL и весов с некоммерческой лицензией среди них нет; библиотеки настоящих моделей всё равно подключаются только как extras.
+Лицензии сверены по первоисточникам (файлы `LICENSE` репозиториев, карточки моделей на Hugging Face, список моделей Vosk) 2026-11-17, строки `gigaam_onnx` и onnx-asr - 2026-11-22. Бэкендов под GPL и AGPL и весов с некоммерческой лицензией среди них нет; библиотеки настоящих моделей всё равно подключаются только как extras.
 
 | Модель | Лицензия | Коммерческое использование |
 | --- | --- | --- |
@@ -220,6 +229,8 @@ MODEL_BACKEND=whisper MODEL_NAME=small ARTIFACTS_PATH=./model uv run python -m s
 | Silero VAD v6.2.3, `app/core/vad/silero_vad.onnx` (детектор речи, входит в ядро) | MIT ([app/core/vad/LICENSE](app/core/vad/LICENSE)) | да |
 | T-one, веса [`t-tech/T-one`](https://huggingface.co/t-tech/T-one) | Apache-2.0 (карточка модели и [LICENSE](https://github.com/voicekit-team/T-one/blob/main/LICENSE) репозитория) | да |
 | GigaAM v2 и v3, библиотека [`gigaam`](https://github.com/salute-developers/GigaAM) и веса | MIT ([LICENSE](https://github.com/salute-developers/GigaAM/blob/main/LICENSE), карточка [`ai-sage/GigaAM-v3`](https://huggingface.co/ai-sage/GigaAM-v3)) | да |
+| GigaAM-v3 в ONNX: веса [`istupakov/gigaam-v3-onnx`](https://huggingface.co/istupakov/gigaam-v3-onnx), экспорт [`ai-sage/GigaAM-v3`](https://huggingface.co/ai-sage/GigaAM-v3) | MIT (карточки моделей, `LICENSE.txt` репозитория весов) | да |
+| onnx-asr 0.12 (extra `gigaam_onnx`) | MIT ([LICENSE](https://github.com/istupakov/onnx-asr/blob/main/LICENSE)) | да |
 | Whisper small, medium, large-v3-turbo (веса OpenAI в формате CTranslate2) | MIT (карточки моделей на Hugging Face, [LICENSE](https://github.com/openai/whisper/blob/main/LICENSE) OpenAI) | да |
 | faster-whisper и CTranslate2 | MIT ([faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE), [CTranslate2](https://github.com/OpenNMT/CTranslate2/blob/master/LICENSE)) | да |
 | Vosk: библиотека и модели `vosk-model-small-ru-0.22`, `vosk-model-ru-0.42` | Apache-2.0 ([COPYING](https://github.com/alphacep/vosk-api/blob/master/COPYING), [список моделей](https://alphacephei.com/vosk/models)) | да |
@@ -243,7 +254,7 @@ curl http://localhost:8102/health
 docker compose up -d --build
 ```
 
-Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль `cpu` или `gpu` и все бэкенды: `cpu gigaam whisper vosk`; `EXTRAS=""` - лёгкий образ с `fake` и `tone`). Настоящая модель задаётся в `.env` (`MODEL_BACKEND`, `MODEL_NAME`); веса при этом скачиваются в `./model`, если задан `ARTIFACTS_PATH=/opt/model`, иначе - в кэш внутри контейнера.
+Аргументы сборки берутся из окружения: `GIT_SHA=$(git rev-parse --short HEAD)` попадает в `/v1/info`, `EXTRAS` задаёт extras образа (по умолчанию профиль и бэкенды: `cpu gigaam whisper vosk` в `Dockerfile.cpu` и `gpu gigaam gigaam_onnx whisper vosk` в CUDA-образе `Dockerfile`; `EXTRAS=""` - лёгкий образ с `fake` и `tone`). Если в `EXTRAS` есть `gpu`, CUDA-образ после `uv sync` запускает `scripts/use-onnxruntime-gpu.sh` (см. ниже). Настоящая модель задаётся в `.env` (`MODEL_BACKEND`, `MODEL_NAME`); веса при этом скачиваются в `./model`, если задан `ARTIFACTS_PATH=/opt/model`, иначе - в кэш внутри контейнера.
 
 Локально:
 
@@ -257,7 +268,51 @@ uv run pytest -q -m "not model"
 
 ```bash
 uv run pytest tests/test_model_smoke.py -q -m model
-``` CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
+```
+
+**onnxruntime с CUDA.** Ядро ставит `onnxruntime` (CPU) для детектора речи, а профиль `gpu` добавляет `onnxruntime-gpu` той же версии: он нужен `gigaam_onnx` (и T-one) на видеокарте. Оба пакета ставят один и тот же модуль `onnxruntime`, и uv ставит их оба - маркеры extras в зависимостях ядра этого не меняют. Поэтому после каждого `uv sync` с профилем `gpu` запускается `scripts/use-onnxruntime-gpu.sh`: он удаляет `onnxruntime`, заново ставит `onnxruntime-gpu` версии из `uv.lock` (`--reinstall --no-deps`) и проверяет, что в сборке есть `CUDAExecutionProvider`. **`uv sync` без скрипта вернёт CPU-сборку**, и `gigaam_onnx` на `cuda` откажется стартовать.
+
+CI (GitHub Actions) прогоняет быстрые тесты на каждый пуш и PR, а на пуш в `dev`, `main` и тег `v*` публикует образы в `ghcr.io/nikarpoff/asr-service` с тегами `latest` (ветка `main`), `sha-<7>` и `v<semver>` и суффиксом варианта: `latest-cpu`, `v0.1.0-cuda`. На `dev` собирается только `-cpu`.
+
+### Тесты на машине моделей
+
+Среда с pytest и всеми бэкендами (G-3), на машине с видеокартой:
+
+```bash
+uv sync --frozen --extra gpu --extra gigaam_onnx --extra whisper --extra vosk
+scripts/use-onnxruntime-gpu.sh
+```
+
+Веса скачиваются заранее (DEP-6), иначе первая загрузка попадёт в тест. С `ARTIFACTS_PATH` тесты берут веса оттуда, без него - из кэшей библиотек:
+
+```bash
+for m in v3_ctc v3_rnnt; do ARTIFACTS_PATH=./model uv run --no-sync python -m scripts.fetch_weights --backend gigaam_onnx --model $m || exit 1; done
+```
+
+Тесты `tests/test_model_machine.py` (маркер `model`; пороги - как у смоука AC-68: WER по `tests/data/questions.jsonl` не больше 30 %, 2 с тишины - пустой текст у самой модели, мимо детектора речи):
+
+| Тест | Что проверяет |
+| --- | --- |
+| `test_backend_recognizes_questions_cuda[gigaam_onnx-v3_ctc]`, `[gigaam_onnx-v3_rnnt]` | GigaAM-v3 в ONNX на `cuda` (AC-20) |
+| `test_backend_recognizes_questions_cuda[whisper-medium]`, `[whisper-large-v3-turbo]` | Whisper на `cuda`, float16 (AC-21) |
+| `test_gigaam_onnx_cuda_provider_cuda` | у `v3_ctc` на `cuda` первый провайдер всех сессий onnxruntime - `CUDAExecutionProvider`, `params.device` - `cuda` (AC-43) |
+| `test_vosk_ru_recognizes_questions` | Vosk `ru` (`vosk-model-ru-0.42`, 1,8 ГБ) на CPU (AC-22) |
+| `test_gigaam_onnx_recognizes_questions_cpu` | GigaAM-v3 `v3_ctc` в ONNX на CPU (MA-1) |
+
+```bash
+uv run --no-sync pytest "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[gigaam_onnx-v3_ctc]" "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[gigaam_onnx-v3_rnnt]" -q -m model    # AC-20
+uv run --no-sync pytest "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[whisper-medium]" "tests/test_model_machine.py::test_backend_recognizes_questions_cuda[whisper-large-v3-turbo]" -q -m model      # AC-21
+uv run --no-sync pytest "tests/test_model_machine.py::test_vosk_ru_recognizes_questions" -q -m model      # AC-22
+uv run --no-sync pytest "tests/test_model_machine.py::test_gigaam_onnx_cuda_provider_cuda" -q -m model    # AC-43
+```
+
+Тесты на CUDA проверяют видеокарту первой строкой, до загрузки весов: без неё они падают за секунды с «CUDA is not available», а не пропускаются (AC-30). Проверка - torch, если он стоит, а у `gigaam_onnx` ещё `CUDAExecutionProvider` в onnxruntime; пустой `CUDA_VISIBLE_DEVICES` - тоже «нет видеокарты»:
+
+```bash
+CUDA_VISIBLE_DEVICES= uv run --no-sync pytest tests/test_model_machine.py -q -m model -k cuda    # exit 1, 5 failed
+```
+
+Ограничения: тестовый манифест - четыре записи (два слова в тишине, два на уличном шуме), поэтому WER здесь - смоук качества, а не замер; замер - `bench/wer.py` на наборе EXP-1. Каждый тест грузит свою модель и освобождает её в конце, чтобы на видеокарте 8 ГБ не держать несколько моделей сразу.
 
 ### Устройство
 
@@ -274,14 +329,15 @@ app/
 │   ├── audio/              # WAV, L16 и multipart -> отсчёты; моно и 16 кГц
 │   ├── vad/                # Silero VAD на onnxruntime, веса и лицензия MIT
 │   ├── text/               # нормализация ASR-4
-│   ├── backends/           # реестр, базовый класс с recognize() и детектором речи; fake, gigaam, tone, whisper, vosk
+│   ├── backends/           # реестр, базовый класс с recognize() и детектором речи; fake, gigaam, gigaam_onnx, tone, whisper, vosk
 │   ├── pipeline.py         # запрос: декодирование -> VAD -> модель -> нормализация, этапы timings
 │   ├── entities.py         # результат распознавания
 │   ├── engine.py           # бэкенд в пуле WORKERS, очередь QUEUE_MAX, прогрев
 │   └── exceptions.py       # доменные ошибки со status_code
 └── utils/                  # lifespan, логирование, middleware X-Request-ID и Server-Timing
 scripts/
-└── fetch_weights.py        # веса MODEL_BACKEND/MODEL_NAME заранее, в ARTIFACTS_PATH или кэш
+├── fetch_weights.py        # веса MODEL_BACKEND/MODEL_NAME заранее, в ARTIFACTS_PATH или кэш
+└── use-onnxruntime-gpu.sh  # после uv sync с профилем gpu: onnxruntime -> onnxruntime-gpu
 bench/
 ├── latency.py              # замер задержки, JSON EXP-2
 └── wer.py                  # WER и CER по манифесту вопросов
