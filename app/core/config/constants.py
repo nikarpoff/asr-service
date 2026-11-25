@@ -17,8 +17,8 @@ class AUDIO_SETTINGS:
 
 
 class VAD_SETTINGS:
-    """Silero VAD thresholds: the defaults of its get_speech_timestamps."""
-    THRESHOLD = 0.5                     # a window with a higher speech probability is speech
+    """Silero VAD thresholds; the speech threshold is below the Silero default of 0.5, the rest are its defaults."""
+    THRESHOLD = 0.3                     # a window with a higher speech probability is speech; 0.5 cut the first vowel off a word in street noise
     NEG_THRESHOLD_GAP = 0.15            # speech ends below THRESHOLD - gap: no flapping around the threshold
     MIN_SPEECH_MS = 250                 # a shorter segment is a click or a cough, not a word
     MIN_SILENCE_MS = 100                # a shorter pause keeps the segment going
